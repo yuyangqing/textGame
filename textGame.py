@@ -1,6 +1,7 @@
 import os
 import time
 import random
+import json
 from dotenv import load_dotenv
 from openai import OpenAI
 
@@ -13,6 +14,42 @@ model = os.environ.get("MODEL")
 
 client = OpenAI(api_key=api_key, base_url=base_url)
 
+def parse_json_response(response_text):
+    """解析JSON格式的响应"""
+    try:
+        # 尝试找到JSON块
+        start_idx = response_text.find('{')
+        end_idx = response_text.rfind('}') + 1
+        
+        if start_idx != -1 and end_idx != 0:
+            json_str = response_text[start_idx:end_idx]
+            return json.loads(json_str)
+    except json.JSONDecodeError:
+        pass
+    
+    # 如果找不到JSON格式，则使用原始解析方法作为备选
+    lines = response_text.split('\n')
+    story_part = []
+    options = []
+    
+    in_story = True
+    for line in lines:
+        line = line.strip()
+        if line.startswith('A.') or line.startswith('B.') or line.startswith('C.'):
+            in_story = False
+            options.append(line)
+        elif '请选择接下来的行动：' in line:
+            in_story = False
+        elif in_story and line:
+            story_part.append(line)
+    
+    # 返回模拟的JSON结构
+    return {
+        "story": "\n".join(story_part),
+        "summary": "剧情摘要",
+        "options": options
+    }
+
 def generate_adventure_game():
     print("🎮 欢迎来到AI文字冒险游戏！")
     print("="*50)
@@ -21,26 +58,82 @@ def generate_adventure_game():
     theme = input("请输入冒险主题（如：魔法世界、奇幻世界、古代权谋等）: ")
     brief = input("请输入冒险简介（背景设定）: ")
     
-    print("\n正在生成您的冒险故事...")
+    print("\n正在生成您的冒险角色...")
     
-    # 初始提示
+    # 生成三个角色
+    character_prompt = f"""
+    你是一个专业的角色设计师。根据以下冒险设定设计三个独特的角色，描述简练：
+    主题：{theme}
+    背景：{brief}
+    
+    输出是JSON格式：
+    {{
+        "characters": [
+            {{"id": "A", "name": "角色A身份", "description": "角色A特点和能力描述"}},
+            {{"id": "B", "name": "角色B身份", "description": "角色B特点和能力描述"}},
+            {{"id": "C", "name": "角色C身份", "description": "角色C特点和能力描述"}}
+        ]
+    }}
+    """
+    
+    character_completion = client.chat.completions.create(
+        model=model,
+        messages=[
+            {'role': 'system', 'content': '你是一个专业的角色设计师，擅长根据世界观创造有特色的人物角色。输出是JSON格式。'},
+            {'role': 'user', 'content': character_prompt}
+        ],
+        temperature=0.8
+    )
+    
+    character_data = parse_json_response(character_completion.choices[0].message.content)
+    
+    print(f"\n🎭 角色介绍：\n{character_data.get('introduction', '')}")
+    print("\n🎯 可选角色：")
+    for char in character_data.get('characters', []):
+        print(f"{char['id']}. {char['name']} - {char['description']}")
+    print("D. 自定义角色")
+    
+    # 让玩家选择角色
+    character_choice = input("\n请选择一个角色 (A/B/C/D): ").upper()
+    while character_choice not in ['A', 'B', 'C', 'D']:
+        character_choice = input("无效选择，请输入 A、B、C 或 D: ").upper()
+    
+    if character_choice == 'D':
+        # 玩家自定义角色
+        custom_character = input("请输入您的自定义角色身份和特点: ")
+        player_character = custom_character
+    else:
+        # 找到选择的角色
+        chosen_char = next((c for c in character_data.get('characters', []) if c['id'] == character_choice), None)
+        if chosen_char:
+            player_character = f"{chosen_char['name']}"
+        else:
+            player_character = "未知角色"
+    
+    print(f"\n👤 您选择的角色是：{player_character}")
+    
+    # 构建初始提示，包含角色信息
     initial_prompt = f"""
     你是一个专业的文字冒险游戏创作者。根据以下设定创作一个引人入胜的冒险故事：
     主题：{theme}
     背景：{brief}
+    玩家角色：{player_character}
     
-    请按照以下格式输出：
-    剧情介绍：
-    [一段引人入胜的开场剧情描述]
-    
-    请选择接下来的行动：
-    A. [选项A描述]
-    B. [选项B描述]
-    C. [选项C描述]
+    输出是JSON格式：
+    {{
+        "story": "一段引人入胜的开场剧情描述，考虑玩家角色身份",
+        "summary": "一句话总结当前剧情要点",
+        "options": [
+            {{"id": "A", "description": "选项A描述"}},
+            {{"id": "B", "description": "选项B描述"}},
+            {{"id": "C", "description": "选项C描述"}}
+        ]
+    }}
     """
     
     current_story = ""
-    story_history = []
+    story_summary = ""
+    history_summaries = []  # 存储历史摘要
     
     # 最大轮次数
     max_rounds = 15  # 设置一个最大轮数限制
@@ -55,12 +148,12 @@ def generate_adventure_game():
             completion = client.chat.completions.create(
                 model=model,
                 messages=[
-                    {'role': 'system', 'content': '你是一个专业的文字冒险游戏创作者，善于创造引人入胜的故事。'},
+                    {'role': 'system', 'content': '你是一个专业的文字冒险游戏创作者，善于创造引人入胜的故事。输出是JSON格式。'},
                     {'role': 'user', 'content': initial_prompt}
                 ],
                 temperature=0.8
             )
-            response_text = completion.choices[0].message.content
+            response_data = parse_json_response(completion.choices[0].message.content)
         else:
             # 后续轮次：根据玩家选择继续故事
             user_choice = input("\n请选择一个选项 (A/B/C/D): ").upper()
@@ -72,67 +165,70 @@ def generate_adventure_game():
                 custom_choice = input("请输入您的自定义行动: ")
                 selected_choice = f"""
                 玩家选择了自定义行动：{custom_choice}
-                1.请根据这个选择继续故事情节，保证情节连贯性和一致性
-                2.提供三个选项，不要重复以前的选择，始终创造推进故事的新选项
-                3.按照以下格式输出：
-                剧情介绍：
-                请选择接下来的行动：
-                A. [选项A描述]
-                B. [选项B描述]
-                C. [选项C描述]
+                
+                输出是JSON格式：
+                {{
+                    "story": "根据玩家选择继续创造有吸引力、连贯性和一致性的故事情节",
+                    "summary": "一句话总结当前剧情要点",
+                    "options": [
+                        {{"id": "A", "description": "选项A描述"}},
+                        {{"id": "B", "description": "选项B描述"}},
+                        {{"id": "C", "description": "选项C描述"}}
+                    ]
+                }}
                 """
             else:
                 # 玩家选择预设选项
-                selected_option_content = ""
-                for line in options:
-                    if line.startswith(f"{user_choice}."):
-                        selected_option_content = line
+                selected_option_desc = ""
+                for opt in response_data.get('options', []):
+                    if opt['id'] == user_choice:
+                        selected_option_desc = opt['description']
                         break
+                
                 selected_choice = f"""
-                玩家选择了{selected_option_content}
-                1.请根据这个选择继续故事情节，保证情节连贯性和一致性
-                2.提供三个选项，不要重复以前的选择，始终创造推进故事的新选项
-                3.按照以下格式输出：
-                剧情介绍：
-                请选择接下来的行动：
-                A. [选项A描述]
-                B. [选项B描述]
-                C. [选项C描述]
+                玩家选择了{selected_option_desc}
+                
+                输出是JSON格式：
+                {{
+                    "story": "根据玩家选择继续创造有吸引力、连贯性和一致性的故事情节",
+                    "summary": "一句话总结当前剧情要点",
+                    "options": [
+                        {{"id": "A", "description": "选项A描述"}},
+                        {{"id": "B", "description": "选项B描述"}},
+                        {{"id": "C", "description": "选项C描述"}}
+                    ]
+                }}
                 """
-
+            
+            # 更新历史摘要列表，保留最新的10条
+            if story_summary:
+                history_summaries.append(story_summary)
+                if len(history_summaries) > 10:
+                    history_summaries.pop(0)  # 移除最旧的摘要
+            
+            # 构建历史摘要字符串
+            history_summary_text = "\n".join([f"{i+1}. {summary}" for i, summary in enumerate(history_summaries)])
             
             completion = client.chat.completions.create(
                 model=model,
                 messages=[
-                    {'role': 'system', 'content': '你是一个专业的文字冒险游戏创作者，善于根据玩家的选择推进故事发展。'},
-                    {'role': 'user', 'content': f"当前剧情：\n{current_story}\n\n{selected_choice}"}
+                    {'role': 'system', 'content': '你是一个专业的文字冒险游戏创作者，善于根据玩家的选择推进故事发展。输出是JSON格式。'},
+                    {'role': 'user', 'content': f"当前剧情摘要：\n{story_summary}\n\n历史摘要：\n{history_summary_text}\n\n{selected_choice}"}
                 ],
                 temperature=0.8
             )
-            response_text = completion.choices[0].message.content
+            response_data = parse_json_response(completion.choices[0].message.content)
         
         end_time = time.time()
         execution_time = end_time - start_time
         
         print(f"\n⏱️ 本轮AI生成耗时: {execution_time:.2f}秒")
         
-        # 解析AI响应，提取剧情和选项
-        lines = response_text.split('\n')
-        story_part = []
-        options = []
+        # 提取数据
+        current_story = response_data.get("story", "")
+        story_summary = response_data.get("summary", "")
+        options = response_data.get("options", [])
         
-        in_story = True
-        for line in lines:
-            line = line.strip()
-            if line.startswith('A.') or line.startswith('B.') or line.startswith('C.'):
-                in_story = False
-                options.append(line)
-            elif '请选择接下来的行动：' in line:
-                in_story = False
-            elif in_story and line:
-                story_part.append(line)
-        
-        current_story = '\n'.join(story_part).replace('剧情介绍：', '').strip()
         print(f"\n📖 故事进展：\n{current_story}")
         
         # 判断是否进入结局阶段
@@ -140,8 +236,7 @@ def generate_adventure_game():
             # 前三轮必定显示选项
             print("\n🎯 请选择接下来的行动：")
             for option in options:
-                if option.startswith('A.') or option.startswith('B.') or option.startswith('C.'):
-                    print(option)
+                print(f"{option['id']}. {option['description']}")
             print("D. 输入自定义选项")
         else:
             # 第四轮开始，按概率判断是否进入结局
@@ -157,19 +252,21 @@ def generate_adventure_game():
                 # 继续显示选项
                 print("\n🎯 请选择接下来的行动：")
                 for option in options:
-                    if option.startswith('A.') or option.startswith('B.') or option.startswith('C.'):
-                        print(option)
+                    print(f"{option['id']}. {option['description']}")
                 print("D. 输入自定义选项")
     
     # 生成结局
     print(f"\n{'='*20} 最终结局 {'='*20}")
     start_time = time.time()
     
+    # 结局使用历史摘要
+    history_summary_text = "\n".join([f"{i+1}. {summary}" for i, summary in enumerate(history_summaries)])
+    
     completion = client.chat.completions.create(
         model=model,
         messages=[
             {'role': 'system', 'content': '你是一个专业的文字冒险游戏创作者，负责为玩家的故事创作一个精彩的结局。'},
-            {'role': 'user', 'content': f"这是冒险的过程：\n{current_story}\n\n请为这个故事创作一个精彩的结局。"}
+            {'role': 'user', 'content': f"这是冒险的过程摘要：\n{story_summary}\n\n历史摘要（最近10条）：\n{history_summary_text}\n\n请为这个故事创作一个精彩的结局。"}
         ],
         temperature=0.7
     )
