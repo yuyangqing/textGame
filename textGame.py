@@ -58,20 +58,20 @@ def generate_adventure_game():
     theme = input("请输入冒险主题（如：魔法世界、奇幻世界、古代权谋等）: ")
     brief = input("请输入冒险简介（背景设定）: ")
     
-    print("\n正在生成您的冒险角色...")
+    print("\n正在生成您的冒险身份...")
     
-    # 生成三个角色
+    # 生成三个身份
     character_prompt = f"""
-    你是一个专业的角色设计师。根据以下冒险设定设计三个独特的角色，描述简练：
+    你是一个专业的身份设计师。根据以下冒险设定设计三个独特的角色身份，描述简练：
     主题：{theme}
     背景：{brief}
     
     输出是JSON格式：
     {{
         "characters": [
-            {{"id": "A", "name": "角色A身份", "description": "角色A特点和能力描述"}},
-            {{"id": "B", "name": "角色B身份", "description": "角色B特点和能力描述"}},
-            {{"id": "C", "name": "角色C身份", "description": "角色C特点和能力描述"}}
+            {{"id": "A", "identity": "角色身份A", "description": "身份A特点和能力描述"}},
+            {{"id": "B", "identity": "角色身份B", "description": "身份B特点和能力描述"}},
+            {{"id": "C", "identity": "角色身份C", "description": "身份C特点和能力描述"}}
         ]
     }}
     """
@@ -79,7 +79,7 @@ def generate_adventure_game():
     character_completion = client.chat.completions.create(
         model=model,
         messages=[
-            {'role': 'system', 'content': '你是一个专业的角色设计师，擅长根据世界观创造有特色的人物角色。输出是JSON格式。'},
+            {'role': 'system', 'content': '你是一个专业的身份设计师，擅长根据世界观创造有特色的人物身份。输出是JSON格式。'},
             {'role': 'user', 'content': character_prompt}
         ],
         temperature=0.8
@@ -87,14 +87,14 @@ def generate_adventure_game():
     
     character_data = parse_json_response(character_completion.choices[0].message.content)
     
-    print(f"\n🎭 角色介绍：\n{character_data.get('introduction', '')}")
-    print("\n🎯 可选角色：")
+    print(f"\n🎭 身份介绍：\n{character_data.get('introduction', '')}")
+    print("\n🎯 可选角色身份：")
     for char in character_data.get('characters', []):
-        print(f"{char['id']}. {char['name']} - {char['description']}")
-    print("D. 自定义角色")
+        print(f"{char['id']}. {char['identity']} - {char['description']}")
+    print("D. 自定义角色身份")
     
     # 让玩家选择角色
-    character_choice = input("\n请选择一个角色 (A/B/C/D): ").upper()
+    character_choice = input("\n请选择一个角色身份 (A/B/C/D): ").upper()
     while character_choice not in ['A', 'B', 'C', 'D']:
         character_choice = input("无效选择，请输入 A、B、C 或 D: ").upper()
     
@@ -106,22 +106,22 @@ def generate_adventure_game():
         # 找到选择的角色
         chosen_char = next((c for c in character_data.get('characters', []) if c['id'] == character_choice), None)
         if chosen_char:
-            player_character = f"{chosen_char['name']}"
+            player_character = f"{chosen_char['identity']}"
         else:
-            player_character = "未知角色"
+            player_character = "未知身份"
     
-    print(f"\n👤 您选择的角色是：{player_character}")
+    print(f"\n👤 您选择的身份是：{player_character}")
     
     # 构建初始提示，包含角色信息
     initial_prompt = f"""
-    你是一个专业的文字冒险游戏创作者。根据以下设定创作一个引人入胜的冒险故事：
+    你是一个专业的文字冒险游戏创作者。根据以下设定创作一个引人入胜的冒险故事，以第二人称为主语：
     主题：{theme}
     背景：{brief}
-    玩家角色：{player_character}
+    玩家身份：{player_character}
     
     输出是JSON格式：
     {{
-        "story": "一段引人入胜的开场剧情描述，考虑玩家角色身份",
+        "story": "一段引人入胜的开场剧情描述，考虑玩家身份",
         "summary": "一句话总结当前剧情要点",
         "options": [
             {{"id": "A", "description": "选项A描述"}},
@@ -148,7 +148,7 @@ def generate_adventure_game():
             completion = client.chat.completions.create(
                 model=model,
                 messages=[
-                    {'role': 'system', 'content': '你是一个专业的文字冒险游戏创作者，善于创造引人入胜的故事。输出是JSON格式。'},
+                    {'role': 'system', 'content': '你是一个专业的文字冒险游戏创作者，善于创造引人入胜的故事，以第二人称为主语。输出是JSON格式。'},
                     {'role': 'user', 'content': initial_prompt}
                 ],
                 temperature=0.8
@@ -168,7 +168,7 @@ def generate_adventure_game():
                 
                 输出是JSON格式：
                 {{
-                    "story": "根据玩家选择继续创造有吸引力、连贯性和一致性的故事情节",
+                    "story": "根据玩家选择继续创造前后连贯、引人入胜的故事情节",
                     "summary": "一句话总结当前剧情要点",
                     "options": [
                         {{"id": "A", "description": "选项A描述"}},
@@ -190,7 +190,7 @@ def generate_adventure_game():
                 
                 输出是JSON格式：
                 {{
-                    "story": "根据玩家选择继续创造有吸引力、连贯性和一致性的故事情节",
+                    "story": "根据玩家选择继续创造前后连贯、引人入胜的故事情节",
                     "summary": "一句话总结当前剧情要点",
                     "options": [
                         {{"id": "A", "description": "选项A描述"}},
@@ -212,8 +212,8 @@ def generate_adventure_game():
             completion = client.chat.completions.create(
                 model=model,
                 messages=[
-                    {'role': 'system', 'content': '你是一个专业的文字冒险游戏创作者，善于根据玩家的选择推进故事发展。输出是JSON格式。'},
-                    {'role': 'user', 'content': f"当前剧情摘要：\n{story_summary}\n\n历史摘要：\n{history_summary_text}\n\n{selected_choice}"}
+                    {'role': 'system', 'content': '你是一个专业的文字冒险游戏创作者，善于根据玩家的选择推进故事发展，以第二人称为主语。输出是JSON格式。'},
+                    {'role': 'user', 'content': f"当前剧情摘要：\n{story_summary}\n\n历史摘要：\n{history_summary_text}\n\n玩家选择：{selected_choice}"}
                 ],
                 temperature=0.8
             )
@@ -232,16 +232,16 @@ def generate_adventure_game():
         print(f"\n📖 故事进展：\n{current_story}")
         
         # 判断是否进入结局阶段
-        if round_num <= 3:
+        if round_num <= 5:
             # 前三轮必定显示选项
             print("\n🎯 请选择接下来的行动：")
             for option in options:
                 print(f"{option['id']}. {option['description']}")
             print("D. 输入自定义选项")
         else:
-            # 第四轮开始，按概率判断是否进入结局
+            # 第六轮开始，按概率判断是否进入结局
             # 随着轮数增加，结束游戏的概率也逐渐增大
-            end_probability = min(0.3 + (round_num - 4) * 0.1, 0.8)  # 递增概率，最高80%
+            end_probability = min(0.3 + (round_num - 6) * 0.1, 0.8)  # 递增概率，最高80%
             
             if random.random() < end_probability:
                 print(f"\n🎲 概率判定：{end_probability*100:.0f}% 概率触发结局")
@@ -265,8 +265,8 @@ def generate_adventure_game():
     completion = client.chat.completions.create(
         model=model,
         messages=[
-            {'role': 'system', 'content': '你是一个专业的文字冒险游戏创作者，负责为玩家的故事创作一个精彩的结局。'},
-            {'role': 'user', 'content': f"这是冒险的过程摘要：\n{story_summary}\n\n历史摘要（最近10条）：\n{history_summary_text}\n\n请为这个故事创作一个精彩的结局。"}
+            {'role': 'system', 'content': '你是一个专业的文字冒险游戏创作者，负责为玩家的故事创作一个精彩的结局，以第二人称为主语。'},
+            {'role': 'user', 'content': f"请为这个故事创作一个精彩的结局。\n\n这是故事的过程摘要：\n{story_summary}"}
         ],
         temperature=0.7
     )
@@ -279,6 +279,24 @@ def generate_adventure_game():
     print(f"\n⏱️ 结局生成耗时: {execution_time:.2f}秒")
     
     print("\n🎉 冒险结束！感谢游玩！")
+
+def ifGoToEnding(round_num):
+    # 判断是否进入结局阶段
+    if round_num <= 5:
+        # 前五轮必定显示选项
+        return False
+    else:
+        # 第六轮开始，按概率判断是否进入结局
+        # 随着轮数增加，结束游戏的概率也逐渐增大
+        end_probability = min(0.3 + (round_num - 6) * 0.1, 0.8)
+        if random.random() < end_probability:
+            print(f"\n🎲 概率判定：{end_probability*100:.0f}% 概率触发结局")
+            # 跳出循环，进入结局阶段
+            return True
+        else:
+            print(f"\n🎲 概率判定：继续冒险 ({(1-end_probability)*100:.0f}% 概率)")
+            return False
+
 
 if __name__ == "__main__":
     generate_adventure_game()
